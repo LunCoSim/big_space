@@ -440,10 +440,7 @@ impl Grid {
         };
 
         let Some(children) = children else { return };
-        for (child, child_of) in parent_query
-            .iter_many(children)
-            .map(|result| result.expect("iter_many yields live children"))
-        {
+        for (child, child_of) in parent_query.iter_many(children).matched() {
             assert_eq!(
                 child_of.parent(), entity,
                 "Malformed hierarchy. This probably means that your hierarchy has been improperly maintained, or contains a cycle"
@@ -561,6 +558,47 @@ mod tests {
             Vec3::ZERO,
             "Root grid GT must update when the floating origin moves to a new cell"
         );
+    }
+
+    #[test]
+    fn non_spatial_children_do_not_interrupt_transform_propagation() {
+        let mut app = App::new();
+        app.add_plugins(BigSpaceMinimalPlugins);
+        let mut checked = Vec::new();
+        app.world_mut().commands().spawn_big_space_default(|root| {
+            root.spawn_spatial(FloatingOrigin);
+            root.spawn_spatial(Transform::from_xyz(10.0, 0.0, 0.0))
+                .with_children(|high| {
+                    high.spawn(Transform::from_xyz(1.0, 0.0, 0.0))
+                        .with_children(|low| {
+                            low.spawn_empty();
+                            checked
+                                .push((low.spawn(Transform::from_xyz(2.0, 0.0, 0.0)).id(), 13.0));
+                        });
+                });
+        });
+        app.world_mut()
+            .commands()
+            .spawn(Transform::from_xyz(20.0, 0.0, 0.0))
+            .with_children(|root| {
+                root.spawn_empty();
+                root.spawn(Transform::from_xyz(1.0, 0.0, 0.0))
+                    .with_children(|child| {
+                        child.spawn_empty();
+                        checked.push((child.spawn(Transform::from_xyz(2.0, 0.0, 0.0)).id(), 23.0));
+                    });
+            });
+        app.update();
+        app.update();
+        for (entity, x) in checked {
+            assert_eq!(
+                app.world()
+                    .get::<GlobalTransform>(entity)
+                    .unwrap()
+                    .translation(),
+                Vec3::X * x
+            );
+        }
     }
 
     #[test]

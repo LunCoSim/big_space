@@ -33,7 +33,7 @@ pub fn propagate_parent_transforms(
 
             for (child, child_of) in child_query
                 .iter_many(children)
-                .map(|result| result.expect("iter_many yields live children"))
+                .matched()
             {
                 assert_eq!(
                     child_of.parent(), entity,
@@ -134,10 +134,7 @@ unsafe fn propagate_recursive(
     };
 
     let Some(children) = children else { return };
-    for (child, child_of) in child_query
-        .iter_many(children)
-        .map(|result| result.expect("iter_many yields live children"))
-    {
+    for (child, child_of) in child_query.iter_many(children).matched() {
         assert_eq!(
             child_of.parent(), entity,
             "Malformed hierarchy. This probably means that your hierarchy has been improperly maintained, or contains a cycle"
